@@ -187,7 +187,7 @@ async def choose_date(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("❌ Формат: 01.06")
             return CHOOSE_DATE
-    keyboard = [[KeyboardButton("👤 Я"), KeyboardButton("👩 Дружина")]]
+    keyboard = [[KeyboardButton("👤 Женя"), KeyboardButton("👩 Аліна")]]
     await update.message.reply_text(
         f"✅ {ctx.user_data['date_label']}\n\nЧия витрата?",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -195,7 +195,7 @@ async def choose_date(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     return CHOOSE_PERSON
 
 async def choose_person(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data["person"] = "me" if "Я" in update.message.text else "wife"
+    ctx.user_data["person"] = "me" if "Женя" in update.message.text else "wife"
     await update.message.reply_text(
         "Категорія:",
         reply_markup=ReplyKeyboardMarkup(CATEGORIES, resize_keyboard=True, one_time_keyboard=True)
@@ -225,7 +225,7 @@ async def enter_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = load_data()
     data.append(expense)
     save_data(data)
-    person_label = "👤 Я" if d["person"] == "me" else "👩 Дружина"
+    person_label = "👤 Женя" if d["person"] == "me" else "👩 Аліна"
     await update.message.reply_text(
         f"✅ Збережено!\n📅 {d.get('date_label', d['date'])}\n"
         f"{person_label} | {d['category']} | {d['amount']:.0f} ₴"
@@ -248,7 +248,7 @@ def format_stats(records, title):
         cats[r["category"]] = cats.get(r["category"], 0) + r["amount"]
     cat_lines = "\n".join(f"  {c}: {a:.0f} ₴ ({a/total*100:.0f}%)"
                           for c, a in sorted(cats.items(), key=lambda x: -x[1]))
-    return f"📊 *{title}*\n\n💰 Всього: *{total:.0f} ₴*\n👤 Я: {me:.0f} ₴\n👩 Дружина: {wife:.0f} ₴\n\n*Категорії:*\n{cat_lines}"
+    return f"📊 *{title}*\n\n💰 Всього: *{total:.0f} ₴*\n👤 Женя: {me:.0f} ₴\n👩 Аліна: {wife:.0f} ₴\n\n*Категорії:*\n{cat_lines}"
 
 async def today_stats(update, ctx):
     records = [r for r in load_data() if r["date"] == datetime.date.today().isoformat()]
