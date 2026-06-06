@@ -89,8 +89,8 @@
 
   <div class="person-tabs">
     <button class="tab active-all" onclick="setPerson('all', this)">👨‍👩‍👧 Усі</button>
-    <button class="tab" onclick="setPerson('me', this)">👤 Я</button>
-    <button class="tab" onclick="setPerson('wife', this)">👩 Дружина</button>
+    <button class="tab" onclick="setPerson('me', this)">👤 Женя</button>
+    <button class="tab" onclick="setPerson('wife', this)">👩 Аліна</button>
   </div>
 
   <div class="date-filters">
@@ -107,8 +107,8 @@
 
   <div class="stats">
     <div class="stat-card"><div class="stat-label">Загальні витрати</div><div class="stat-value blue" id="stat-total">0 ₴</div></div>
-    <div class="stat-card"><div class="stat-label">Мої витрати</div><div class="stat-value purple" id="stat-me">0 ₴</div></div>
-    <div class="stat-card"><div class="stat-label">Витрати дружини</div><div class="stat-value pink" id="stat-wife">0 ₴</div></div>
+    <div class="stat-card"><div class="stat-label">Витрати Жені</div><div class="stat-value purple" id="stat-me">0 ₴</div></div>
+    <div class="stat-card"><div class="stat-label">Витрати Аліни</div><div class="stat-value pink" id="stat-wife">0 ₴</div></div>
     <div class="stat-card"><div class="stat-label">Транзакцій</div><div class="stat-value white" id="stat-count">0</div></div>
   </div>
 
@@ -121,8 +121,8 @@
     <h3>➕ Додати витрату</h3>
     <div class="form-row">
       <select id="inp-person">
-        <option value="me">👤 Я</option>
-        <option value="wife">👩 Дружина</option>
+        <option value="me">👤 Женя</option>
+        <option value="wife">👩 Аліна</option>
       </select>
       <select id="inp-cat">
         <option>🛒 Продукти</option>
@@ -317,7 +317,7 @@ function render() {
       <div style="display:flex;align-items:center;gap:10px">
         <div>
           <div class="tx-amount">${e.amount.toLocaleString()} ₴</div>
-          <div style="text-align:right"><span class="tx-person ${e.person}">${e.person==='me'?'👤 Я':'👩 Дружина'}</span></div>
+          <div style="text-align:right"><span class="tx-person ${e.person}">${e.person==='me'?'👤 Женя':'👩 Аліна'}</span></div>
         </div>
         <button class="tx-del" onclick="deleteExpense(${e.id||0})">✕</button>
       </div>
