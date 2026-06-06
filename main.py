@@ -1,26 +1,26 @@
 """
 💰 Фінансовий додаток для Railway
-Сервер + Бот в одному файлі
+З PostgreSQL базою даних
 """
 
 import json
 import os
 import datetime
 import threading
-import asyncio
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-# Telegram bot imports
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     ContextTypes, ConversationHandler, filters
 )
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ВВЕДИ_СВІЙ_TOKEN_ТУТ")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 PORT = int(os.environ.get("PORT", 8765))
-DATA_FILE = "expenses.json"
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 CHOOSE_DATE, CHOOSE_PERSON, CHOOSE_CATEGORY, ENTER_AMOUNT, ENTER_NOTE = range(5)
 
@@ -31,24 +31,81 @@ CATEGORIES = [
     ["🎬 Розваги", "📦 Інше"],
 ]
 
-# ---- Дані ----
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+# ---- База даних ----
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
 
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id BIGINT PRIMARY KEY,
+            person VARCHAR(10),
+            category VARCHAR(50),
+            amount FLOAT,
+            note TEXT DEFAULT '',
+            date VARCHAR(10)
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+    print("✅ База даних готова")
+
+def load_data():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM expenses ORDER BY date DESC, id DESC")
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return rows
+
+def add_expense(expense):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO expenses (id, person, category, amount, note, date) VALUES (%s, %s, %s, %s, %s, %s)",
+        (expense["id"], expense["person"], expense["category"],
+         expense["amount"], expense.get("note", ""), expense["date"])
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def delete_expense(eid):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM expenses WHERE id = %s", (eid,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def filter_expenses(from_d=None, to_d=None, person=None):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    query = "SELECT * FROM expenses WHERE 1=1"
+    params = []
+    if from_d:
+        query += " AND date >= %s"; params.append(from_d)
+    if to_d:
+        query += " AND date <= %s"; params.append(to_d)
+    if person and person != "all":
+        query += " AND person = %s"; params.append(person)
+    query += " ORDER BY date DESC, id DESC"
+    cur.execute(query, params)
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return rows
 
 # ---- HTTP Сервер ----
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass
+    def log_message(self, format, *args): pass
 
     def send_json(self, data, status=200):
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        body = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -73,32 +130,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-
-        if parsed.path == "/" or parsed.path == "/dashboard":
+        if parsed.path in ["/", "/dashboard"]:
             if os.path.exists("dashboard.html"):
                 with open("dashboard.html", "r", encoding="utf-8") as f:
                     self.send_html(f.read())
             else:
-                self.send_json({"error": "dashboard.html not found"}, 404)
-
+                self.send_json({"error": "not found"}, 404)
         elif parsed.path == "/expenses":
             self.send_json(load_data())
-
         elif parsed.path == "/expenses/filter":
             params = parse_qs(parsed.query)
-            data = load_data()
-            from_d = params.get("from", [None])[0]
-            to_d = params.get("to", [None])[0]
-            person = params.get("person", [None])[0]
-            result = [e for e in data if
-                (not from_d or e["date"] >= from_d) and
-                (not to_d or e["date"] <= to_d) and
-                (not person or person == "all" or e["person"] == person)]
-            self.send_json(result)
-
+            rows = filter_expenses(
+                from_d=params.get("from", [None])[0],
+                to_d=params.get("to", [None])[0],
+                person=params.get("person", [None])[0]
+            )
+            self.send_json(rows)
         elif parsed.path == "/health":
             self.send_json({"ok": True})
-
         else:
             self.send_json({"error": "not found"}, 404)
 
@@ -110,9 +159,7 @@ class Handler(BaseHTTPRequestHandler):
                 expense = json.loads(body.decode("utf-8"))
                 expense["id"] = int(datetime.datetime.now().timestamp() * 1000)
                 expense.setdefault("note", "")
-                data = load_data()
-                data.append(expense)
-                save_data(data)
+                add_expense(expense)
                 self.send_json({"ok": True, "id": expense["id"]})
             except Exception as ex:
                 self.send_json({"error": str(ex)}, 400)
@@ -124,9 +171,7 @@ class Handler(BaseHTTPRequestHandler):
         parts = parsed.path.strip("/").split("/")
         if len(parts) == 2 and parts[0] == "expenses":
             try:
-                eid = int(parts[1])
-                data = [e for e in load_data() if e.get("id") != eid]
-                save_data(data)
+                delete_expense(int(parts[1]))
                 self.send_json({"ok": True})
             except Exception as ex:
                 self.send_json({"error": str(ex)}, 400)
@@ -219,12 +264,12 @@ async def enter_amount(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def enter_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     note = "" if update.message.text.strip() == "-" else update.message.text.strip()
     d = ctx.user_data
-    expense = {"person": d["person"], "category": d["category"],
-               "amount": d["amount"], "note": note, "date": d["date"]}
-    expense["id"] = int(datetime.datetime.now().timestamp() * 1000)
-    data = load_data()
-    data.append(expense)
-    save_data(data)
+    expense = {
+        "id": int(datetime.datetime.now().timestamp() * 1000),
+        "person": d["person"], "category": d["category"],
+        "amount": d["amount"], "note": note, "date": d["date"]
+    }
+    add_expense(expense)
     person_label = "👤 Женя" if d["person"] == "me" else "👩 Аліна"
     await update.message.reply_text(
         f"✅ Збережено!\n📅 {d.get('date_label', d['date'])}\n"
@@ -251,17 +296,17 @@ def format_stats(records, title):
     return f"📊 *{title}*\n\n💰 Всього: *{total:.0f} ₴*\n👤 Женя: {me:.0f} ₴\n👩 Аліна: {wife:.0f} ₴\n\n*Категорії:*\n{cat_lines}"
 
 async def today_stats(update, ctx):
-    records = [r for r in load_data() if r["date"] == datetime.date.today().isoformat()]
+    records = filter_expenses(from_d=datetime.date.today().isoformat(), to_d=datetime.date.today().isoformat())
     await update.message.reply_text(format_stats(records, "Сьогодні"), parse_mode="Markdown")
 
 async def week_stats(update, ctx):
     cutoff = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
-    records = [r for r in load_data() if r["date"] >= cutoff]
+    records = filter_expenses(from_d=cutoff)
     await update.message.reply_text(format_stats(records, "За тиждень"), parse_mode="Markdown")
 
 async def month_stats(update, ctx):
     cutoff = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
-    records = [r for r in load_data() if r["date"] >= cutoff]
+    records = filter_expenses(from_d=cutoff)
     await update.message.reply_text(format_stats(records, "За місяць"), parse_mode="Markdown")
 
 async def all_stats(update, ctx):
@@ -291,8 +336,7 @@ def run_bot():
     app.run_polling()
 
 if __name__ == "__main__":
-    # Запускаємо сервер в окремому потоці
+    init_db()
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
-    # Запускаємо бота в головному потоці
     run_bot()
