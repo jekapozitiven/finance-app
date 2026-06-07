@@ -63,8 +63,19 @@
   .tx-person { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
   .tx-person.me { background: #3d2000; color: #e8834a; }
   .tx-person.wife { background: #3d0020; color: #c96b8a; }
-  .tx-del { background: none; border: none; color: #6b4c2a; cursor: pointer; font-size: 16px; margin-left: 10px; }
+  .tx-del { background: none; border: none; color: #6b4c2a; cursor: pointer; font-size: 16px; margin-left: 6px; }
   .tx-del:hover { color: #ef4444; }
+  .tx-edit { background: none; border: none; color: #6b4c2a; cursor: pointer; font-size: 15px; margin-left: 6px; }
+  .tx-edit:hover { color: #f5c842; }
+  .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:#2d1f0e; border:1px solid #5c3d1a; border-radius:16px; padding:24px; width:90%; max-width:480px; }
+  .modal h3 { color:#f5c842; margin-bottom:18px; font-size:16px; }
+  .modal-row { display:flex; flex-direction:column; gap:10px; }
+  .modal-row select, .modal-row input { background:#1a1208; border:1px solid #5c3d1a; color:#f0deb0; padding:10px 14px; border-radius:10px; font-size:14px; }
+  .modal-btns { display:flex; gap:10px; margin-top:16px; }
+  .modal-save { flex:1; padding:10px; background:linear-gradient(135deg,#d4a017,#e8834a); border:none; border-radius:10px; color:#fff; font-weight:700; cursor:pointer; font-size:14px; }
+  .modal-cancel { flex:1; padding:10px; background:#3d2000; border:1px solid #5c3d1a; border-radius:10px; color:#c9a96e; cursor:pointer; font-size:14px; }
   .empty { text-align: center; color: #6b4c2a; padding: 30px; font-size: 14px; }
   .server-warn { background: #2d1010; border: 1px solid #7f1d1d; color: #f87171; padding: 14px 20px; border-radius: 12px; margin-bottom: 20px; font-size: 13px; display: none; }
 </style>
@@ -147,6 +158,36 @@
     <div class="tx-list" id="tx-list"><div class="empty">Завантаження...</div></div>
   </div>
 
+</div>
+
+<!-- Модальне вікно редагування -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏️ Редагувати витрату</h3>
+    <div class="modal-row">
+      <select id="edit-person">
+        <option value="me">👤 Женя</option>
+        <option value="wife">👩 Аліна</option>
+      </select>
+      <select id="edit-cat">
+        <option>🛒 Продукти</option>
+        <option>💊 Аптека</option>
+        <option>☕ Кафе</option>
+        <option>🏠 Для дому</option>
+        <option>🚗 Транспорт</option>
+        <option>👗 Одяг</option>
+        <option>🎬 Розваги</option>
+        <option>📦 Інше</option>
+      </select>
+      <input type="number" id="edit-amount" placeholder="Сума, ₴"/>
+      <input type="text" id="edit-note" placeholder="Нотатка"/>
+      <input type="date" id="edit-date"/>
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">Скасувати</button>
+      <button class="modal-save" onclick="saveEdit()">Зберегти</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -320,9 +361,50 @@ function render() {
           <div class="tx-amount">${e.amount.toLocaleString()} ₴</div>
           <div style="text-align:right"><span class="tx-person ${e.person}">${e.person==='me'?'👤 Женя':'👩 Аліна'}</span></div>
         </div>
-        <button class="tx-del" onclick="deleteExpense(${e.id||0})">✕</button>
+        <button class="tx-edit" onclick="openEdit(${e.id||0})">✏️</button><button class="tx-del" onclick="deleteExpense(${e.id||0})">✕</button>
       </div>
     </div>`).join('');
+}
+
+let editId = null;
+
+function openEdit(id) {
+  const e = allData.find(x => (x.id||0) == id);
+  if (!e) return;
+  editId = id;
+  document.getElementById('edit-person').value = e.person;
+  document.getElementById('edit-cat').value = e.category;
+  document.getElementById('edit-amount').value = e.amount;
+  document.getElementById('edit-note').value = e.note || '';
+  document.getElementById('edit-date').value = e.date;
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  editId = null;
+}
+
+async function saveEdit() {
+  if (!editId) return;
+  const expense = {
+    person: document.getElementById('edit-person').value,
+    category: document.getElementById('edit-cat').value,
+    amount: parseFloat(document.getElementById('edit-amount').value),
+    note: document.getElementById('edit-note').value,
+    date: document.getElementById('edit-date').value
+  };
+  try {
+    await fetch(`${SERVER}/expenses/${editId}`, { method: 'DELETE' });
+    expense.id = editId;
+    await fetch(`${SERVER}/expenses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expense)
+    });
+    closeModal();
+    await fetchData();
+  } catch { alert('Помилка збереження'); }
 }
 
 // Авто-оновлення кожні 5 секунд
