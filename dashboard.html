@@ -217,23 +217,29 @@ function today() {
 }
 
 // ---- Fetch з сервера ----
-async function fetchData() {
+async function fetchData(force = false) {
   try {
     const res = await fetch(`${SERVER}/expenses`, { signal: AbortSignal.timeout(3000) });
-    allData = await res.json();
-    localStorage.setItem('fin_cache', JSON.stringify(allData));
+    const newData = await res.json();
+    const newStr = JSON.stringify(newData);
+    const oldStr = JSON.stringify(allData);
+    localStorage.setItem('fin_cache', newStr);
     document.getElementById('sync-badge').textContent = '🟢 Синхронізовано';
     document.getElementById('sync-badge').className = 'sync-badge';
     document.getElementById('server-warn').style.display = 'none';
+    // Перемальовуємо тільки якщо дані змінились або примусово
+    if (force || newStr !== oldStr) {
+      allData = newData;
+      render();
+    }
   } catch {
-    // Сервер недоступний — беремо кеш
     const cached = localStorage.getItem('fin_cache');
     if (cached) allData = JSON.parse(cached);
     document.getElementById('sync-badge').textContent = '🔴 Офлайн (кеш)';
     document.getElementById('sync-badge').className = 'sync-badge error';
     document.getElementById('server-warn').style.display = 'block';
+    if (!allData.length) render();
   }
-  render();
 }
 
 async function addExpense() {
@@ -311,10 +317,25 @@ function filtered() {
 
 // ---- Рендер ----
 const CAT_COLORS = {
-  '🛒 Продукти':'#fbbf24','💊 Аптека':'#34d399','☕ Кафе':'#f97316',
-  '🏠 Для дому':'#a78bfa','🚗 Транспорт':'#38bdf8','👗 Одяг':'#f472b6',
-  '🎬 Розваги':'#fb7185','📦 Інше':'#64748b',
-  '🍔 Їжа':'#f97316','🏠 Комунальні':'#a78bfa'
+  "🛒 Продукти":         "#fbbf24",
+  "💆 Краса та здоров'я":"#f472b6",
+  "☕ Кафе":             "#f97316",
+  "🏠 Житло":            "#a78bfa",
+  "🚗 Транспорт":        "#38bdf8",
+  "👗 Одяг":             "#e879f9",
+  "🎬 Розваги":          "#fb7185",
+  "📱 Підписки":         "#06b6d4",
+  "🏋️ Спорт":           "#34d399",
+  "💡 Платіжки":         "#facc15",
+  "🎁 Подарунки":        "#f43f5e",
+  "💳 % по кредиту":     "#ef4444",
+  "🏡 Товари для дому":  "#84cc16",
+  "💼 Товари для роботи":"#60a5fa",
+  "🏦 Закриття кредиту": "#dc2626",
+  "📦 Інше":             "#94a3b8",
+  "🍔 Їжа":              "#f97316",
+  "🏠 Комунальні":       "#a78bfa",
+  "💊 Аптека":           "#34d399"
 };
 
 function render() {
@@ -421,7 +442,7 @@ async function saveEdit() {
 }
 
 // Авто-оновлення кожні 5 секунд
-fetchData();
+fetchData(true);
 setInterval(fetchData, 5000);
 </script>
 </body>
