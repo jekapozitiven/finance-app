@@ -389,8 +389,16 @@ function render() {
 
   // Transactions
   const el = document.getElementById('tx-list');
-  if (!data.length) { el.innerHTML='<div class="empty">Немає витрат за цей період.</div>'; return; }
-  const s = [...data].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0));
+  const qVal = (document.getElementById('search-input') ? document.getElementById('search-input').value : '').trim().toLowerCase();
+  const words = qVal ? qVal.split(' ').filter(function(w){return w.length>0;}) : [];
+  const fdata = words.length ? data.filter(function(e){
+    var hay = [e.note||'', e.category||'', String(e.amount), e.date].join(' ').toLowerCase();
+    return words.every(function(w){return hay.indexOf(w)>=0;});
+  }) : data;
+  var countEl = document.getElementById('search-count');
+  if (countEl) countEl.textContent = qVal ? ('Знайдено: '+fdata.length+' з '+data.length) : '';
+  if (!fdata.length) { el.innerHTML = qVal ? '<div class="empty">Нічого не знайдено 🔍</div>' : '<div class="empty">Немає витрат за цей період.</div>'; return; }
+  const s = [...fdata].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0));
   el.innerHTML = s.map(e=>`
     <div class="tx-item ${e.person==='wife'?'wife':''}">
       <div>
@@ -405,7 +413,6 @@ function render() {
         <button class="tx-edit" onclick="openEdit(${e.id||0})">✏️</button><button class="tx-del" onclick="deleteExpense(${e.id||0})">✕</button>
       </div>
     </div>`).join('');
-}
 
 let editId = null;
 
