@@ -413,6 +413,7 @@ function render() {
         <button class="tx-edit" onclick="openEdit(${e.id||0})">✏️</button><button class="tx-del" onclick="deleteExpense(${e.id||0})">✕</button>
       </div>
     </div>`).join('');
+}
 
 let editId = null;
 
@@ -453,6 +454,12 @@ async function saveEdit() {
     closeModal();
     await fetchData();
   } catch { alert('Помилка збереження'); }
+}
+
+function onSearch() { render(); }
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  render();
 }
 
 // Авто-оновлення кожні 5 секунд
