@@ -163,11 +163,11 @@
 
   <div class="card">
     <h3>🧾 Транзакції</h3>
-    <div class="search-wrap">
-      <input class="search-input" id="search-input" placeholder="🔍 Пошук по нотатці, категорії, сумі..." oninput="onSearch()"/>
-      <button class="search-clear" onclick="clearSearch()" title="Очистити">✕</button>
+    <div style="position:relative;margin-bottom:12px;">
+      <input id="search-input" oninput="onSearch()" placeholder="🔍 Пошук по нотатці, категорії, сумі..." style="width:100%;background:#0f172a;border:1px solid #5c3d1a;color:#f0deb0;padding:10px 40px 10px 14px;border-radius:10px;font-size:14px;height:42px;box-sizing:border-box;"/>
+      <button onclick="clearSearch()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6b4c2a;cursor:pointer;font-size:15px;">✕</button>
     </div>
-    <div class="search-count" id="search-count"></div>
+    <div id="search-count" style="font-size:12px;color:#8a6a3a;margin-bottom:8px;"></div>
     <div class="tx-list" id="tx-list"><div class="empty">Завантаження...</div></div>
   </div>
 
