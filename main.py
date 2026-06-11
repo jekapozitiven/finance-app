@@ -343,4 +343,11 @@ if __name__ == "__main__":
     init_db()
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
-    run_bot()
+    # Запускаємо бота з автоперезапуском при помилці
+    import time
+    while True:
+        try:
+            run_bot()
+        except Exception as e:
+            print(f"⚠️ Бот впав: {e}, перезапуск через 5 сек...")
+            time.sleep(5)
