@@ -93,12 +93,7 @@
   <div id="sync-badge" class="sync-badge">🔄 Підключення...</div>
 </div>
 
-<div class="page-tabs">
-  <button class="page-tab active" onclick="showPage('main', this)">📊 Дашборд</button>
-  <button class="page-tab" onclick="showPage('top', this)">🔥 Топ витрат</button>
-</div>
-
-<div class="container" id="page-main">
+<div class="container">
 
   <div id="server-warn" class="server-warn">
     ⚠️ <strong>Сервер не відповідає.</strong> Переконайся що <code>server.py</code> запущено у терміналі. Дані показані з кешу браузера.
@@ -213,41 +208,6 @@
   </div>
 </div>
 
-</div>
-
-<!-- Сторінка Топ витрат -->
-<div id="page-top" style="display:none;">
-  <div class="container">
-    <div class="top-controls">
-      <div class="top-filters">
-        <button class="df-btn active" onclick="setTopRange('month', this)">Місяць</button>
-        <button class="df-btn" onclick="setTopRange('all', this)">Всі</button>
-      </div>
-      <div class="person-tabs" style="margin-bottom:0">
-        <button class="tab active-all" onclick="setTopPerson('all', this)">👨‍👩‍👧 Усі</button>
-        <button class="tab" onclick="setTopPerson('me', this)">👤 Женя</button>
-        <button class="tab" onclick="setTopPerson('wife', this)">👩 Аліна</button>
-      </div>
-    </div>
-
-    <div class="stats" style="margin-bottom:20px" id="top-stats"></div>
-
-    <div class="card" style="margin-bottom:20px">
-      <h3>🏆 Топ 10 найбільших витрат</h3>
-      <div id="top-list"></div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <h3>📊 Витрати по категоріях</h3>
-        <div class="chart-wrap"><canvas id="topCatChart"></canvas></div>
-      </div>
-      <div class="card">
-        <h3>👥 Женя vs Аліна</h3>
-        <div class="chart-wrap"><canvas id="topPersonChart"></canvas></div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -486,133 +446,6 @@ async function saveEdit() {
     closeModal();
     await fetchData();
   } catch { alert('Помилка збереження'); }
-}
-
-// ---- Сторінка Топ витрат ----
-let topRange = 'month';
-let topPerson = 'all';
-let topCatChart, topPersonChart;
-
-function showPage(page, btn) {
-  document.getElementById('page-main').style.display = page === 'main' ? '' : 'none';
-  document.getElementById('page-top').style.display = page === 'top' ? '' : 'none';
-  document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  if (page === 'top') renderTop();
-}
-
-function setTopRange(r, btn) {
-  topRange = r;
-  document.querySelectorAll('.top-filters .df-btn').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  renderTop();
-}
-
-function setTopPerson(p, btn) {
-  topPerson = p;
-  document.querySelectorAll('#page-top .person-tabs .tab').forEach(t => t.className = 'tab');
-  if (p === 'all') btn.className = 'tab active-all';
-  else if (p === 'me') btn.className = 'tab active-me';
-  else btn.className = 'tab active-wife';
-  renderTop();
-}
-
-function getTopData() {
-  const now = new Date();
-  return allData.filter(e => {
-    if (topPerson !== 'all' && e.person !== topPerson) return false;
-    if (topRange === 'month') {
-      return e.date.startsWith(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
-    }
-    return true;
-  });
-}
-
-function renderTop() {
-  const data = getTopData();
-  const total = data.reduce((s,e)=>s+e.amount,0);
-  const me = data.filter(e=>e.person==='me').reduce((s,e)=>s+e.amount,0);
-  const wife = data.filter(e=>e.person==='wife').reduce((s,e)=>s+e.amount,0);
-
-  // Stats
-  document.getElementById('top-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Загальні витрати</div><div class="stat-value blue">${total.toLocaleString()} ₴</div></div>
-    <div class="stat-card"><div class="stat-label">Витрати Жені</div><div class="stat-value purple">${me.toLocaleString()} ₴</div></div>
-    <div class="stat-card"><div class="stat-label">Витрати Аліни</div><div class="stat-value pink">${wife.toLocaleString()} ₴</div></div>
-    <div class="stat-card"><div class="stat-label">Транзакцій</div><div class="stat-value white">${data.length}</div></div>
-  `;
-
-  // Top 10
-  const sorted = [...data].sort((a,b)=>b.amount-a.amount).slice(0,10);
-  const ranks = ['🥇','🥈','🥉'];
-  const rankClass = ['gold','silver','bronze'];
-  document.getElementById('top-list').innerHTML = sorted.length ? sorted.map((e,i) => `
-    <div class="top-item ${e.person==='wife'?'wife':''}">
-      <div class="top-rank ${rankClass[i]||''}">${ranks[i]||i+1}</div>
-      <div class="top-info">
-        <div class="top-cat">${e.category}${e.note?' — '+e.note:''}</div>
-        <div class="top-meta">${e.date.split('-').reverse().join('.')} · ${e.person==='me'?'👤 Женя':'👩 Аліна'}</div>
-      </div>
-      <div class="top-amount">${e.amount.toLocaleString()} ₴</div>
-    </div>`).join('') : '<div class="empty">Немає витрат за цей період.</div>';
-
-  // Category chart
-  const cats = {};
-  data.forEach(e => cats[e.category]=(cats[e.category]||0)+e.amount);
-  const catLabels = Object.keys(cats).sort((a,b)=>cats[b]-cats[a]);
-  const catVals = catLabels.map(l=>cats[l]);
-  const catColors = catLabels.map(l=>CAT_COLORS[l]||'#64748b');
-  const ctx1 = document.getElementById('topCatChart').getContext('2d');
-  if (topCatChart) topCatChart.destroy();
-  topCatChart = new Chart(ctx1, {
-    type: 'bar',
-    data: { labels: catLabels.map(l=>l.length>12?l.slice(0,12)+'…':l), datasets: [{ data:catVals, backgroundColor:catColors, borderRadius:6 }] },
-    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c=>`${c.parsed.x.toLocaleString()} ₴` } } },
-      scales:{ x:{ticks:{color:'#8a6a3a'}, grid:{color:'#2d1f0e'}}, y:{ticks:{color:'#c9a96e',font:{size:11}}, grid:{display:false}} } }
-  });
-
-  // Person chart
-  const ctx2 = document.getElementById('topPersonChart').getContext('2d');
-  if (topPersonChart) topPersonChart.destroy();
-  topPersonChart = new Chart(ctx2, {
-    type: 'doughnut',
-    data: { labels:['👤 Женя','👩 Аліна'], datasets:[{ data:[me,wife], backgroundColor:['#e8834a','#c96b8a'], borderColor:'#1a1208', borderWidth:3 }] },
-    options: { responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ color:'#c9a96e', font:{size:13}, padding:16 } },
-        tooltip:{ callbacks:{ label: c=>`${c.label}: ${c.parsed.toLocaleString()} ₴ (${total?((c.parsed/total)*100).toFixed(1):0}%)` } } } }
-  });
-}
-
-// ---- Пошук ----
-function onSearch() { renderTx(filtered()); }
-
-function clearSearch() {
-  document.getElementById('search-input').value = '';
-  renderTx(filtered());
-}
-
-function searchFilter(data) {
-  const q = document.getElementById('search-input')?.value?.trim().toLowerCase();
-  if (!q) return data;
-  // Розбиваємо запит на слова для нечіткого пошуку
-  const words = q.split(/\s+/).filter(Boolean);
-  return data.filter(e => {
-    const haystack = [e.note||'', e.category||'', String(e.amount), e.date].join(' ').toLowerCase();
-    // Всі слова мають зустрічатись (часткове співпадіння)
-    return words.every(w => haystack.includes(w));
-  });
-}
-
-function highlightText(text, query) {
-  if (!query) return text;
-  const words = query.trim().split(/\s+/).filter(Boolean);
-  let result = text;
-  words.forEach(w => {
-    const re = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\]/g,'\$&')})`, 'gi');
-    result = result.replace(re, '<span class="highlight">$1</span>');
-  });
-  return result;
 }
 
 // Авто-оновлення кожні 5 секунд
