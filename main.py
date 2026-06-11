@@ -340,14 +340,16 @@ def run_bot():
     app.run_polling()
 
 if __name__ == "__main__":
+    import time
     init_db()
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
     # Запускаємо бота з автоперезапуском при помилці
-    import time
     while True:
         try:
+            import asyncio
+            asyncio.set_event_loop(asyncio.new_event_loop())
             run_bot()
         except Exception as e:
-            print(f"⚠️ Бот впав: {e}, перезапуск через 5 сек...")
-            time.sleep(5)
+            print(f"⚠️ Бот впав: {e}, перезапуск через 10 сек...")
+            time.sleep(10)
