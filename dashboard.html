@@ -34,10 +34,10 @@
   .stat-card { background: #1c1c1e; border: 1px solid #2c2c2e; border-radius: 14px; padding: 18px 20px; }
   .stat-label { font-size: 12px; color: #8e8e93; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
   .stat-value { font-size: 26px; font-weight: 700; }
-  .stat-value.blue { color: #ffffff; }
-  .stat-value.purple { color: #ffffff; }
-  .stat-value.pink { color: #ffffff; }
-  .stat-value.white { color: #ffffff; }
+  .stat-value.blue { color: #30d158; }
+  .stat-value.purple { color: #30d158; }
+  .stat-value.pink { color: #30d158; }
+  .stat-value.white { color: #30d158; }
 
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
   @media(max-width:700px){ .grid { grid-template-columns: 1fr; } }
@@ -59,7 +59,7 @@
   .tx-item.wife { border-left-color: #8e8e93; }
   .tx-cat { font-size: 13px; font-weight: 600; color: #ffffff; }
   .tx-meta { font-size: 11px; color: #8e8e93; }
-  .tx-amount { font-size: 15px; font-weight: 700; color: #ffffff; }
+  .tx-amount { font-size: 15px; font-weight: 700; color: #30d158; }
   .tx-person { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
   .tx-person.me { background: #2c2c2e; color: #ffffff; }
   .tx-person.wife { background: #2c2c2e; color: #8e8e93; }
@@ -400,7 +400,7 @@ function render() {
   barChart = new Chart(bCtx, {
     type: 'bar',
     data: { labels: sorted.map(d=>{ const p=d.split('-'); return `${p[2]}.${p[1]}`; }),
-      datasets: [{ label:'₴', data: sorted.map(d=>byDay[d]), backgroundColor:'#ffffff', borderRadius:6 }] },
+      datasets: [{ label:'₴', data: sorted.map(d=>byDay[d]), backgroundColor:'#30d158', borderRadius:6 }] },
     options: { responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:false} },
       scales:{ x:{ticks:{color:'#8e8e93'}, grid:{color:'#2c2c2e'}}, y:{ticks:{color:'#8e8e93'}, grid:{color:'#2c2c2e'}} } }
