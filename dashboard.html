@@ -136,7 +136,7 @@
         <option value="me">👤 Женя</option>
         <option value="wife">👩 Аліна</option>
       </select>
-      <select id="inp-cat">
+      <select id="inp-cat" onchange="toggleCustomCat('inp')">
         <option>🛒 Продукти</option>
         <option>💆 Краса та здоров'я</option>
         <option>☕ Кафе</option>
@@ -153,7 +153,9 @@
         <option>💼 Товари для роботи</option>
         <option>🏦 Закриття кредиту</option>
         <option>📦 Інше</option>
+        <option value="custom">✏️ Своя категорія</option>
       </select>
+      <input type="text" id="inp-cat-custom" placeholder="Назва категорії" style="display:none;"/>
       <input type="number" id="inp-amount" placeholder="Сума, ₴" min="0"/>
       <input type="text" id="inp-note" placeholder="Нотатка"/>
       <input type="date" id="inp-date"/>
@@ -182,7 +184,7 @@
         <option value="me">👤 Женя</option>
         <option value="wife">👩 Аліна</option>
       </select>
-      <select id="edit-cat">
+      <select id="edit-cat" onchange="toggleCustomCat('edit')">
         <option>🛒 Продукти</option>
         <option>💆 Краса та здоров'я</option>
         <option>☕ Кафе</option>
@@ -195,8 +197,13 @@
         <option>💡 Платіжки</option>
         <option>🎁 Подарунки</option>
         <option>💳 % по кредиту</option>
+        <option>🏡 Товари для дому</option>
+        <option>💼 Товари для роботи</option>
+        <option>🏦 Закриття кредиту</option>
         <option>📦 Інше</option>
+        <option value="custom">✏️ Своя категорія</option>
       </select>
+      <input type="text" id="edit-cat-custom" placeholder="Назва категорії" style="display:none;"/>
       <input type="number" id="edit-amount" placeholder="Сума, ₴"/>
       <input type="text" id="edit-note" placeholder="Нотатка"/>
       <input type="date" id="edit-date"/>
@@ -251,10 +258,12 @@ async function fetchData(force = false) {
 
 async function addExpense() {
   const person = document.getElementById('inp-person').value;
-  const category = document.getElementById('inp-cat').value;
+  const catSel = document.getElementById('inp-cat').value;
+  const category = catSel === 'custom' ? document.getElementById('inp-cat-custom').value.trim() : catSel;
   const amount = parseFloat(document.getElementById('inp-amount').value);
   const note = document.getElementById('inp-note').value.trim();
   const date = document.getElementById('inp-date').value;
+  if (!category) { alert('Введи назву категорії!'); return; }
   if (!amount || amount <= 0 || !date) { alert('Введи суму та дату!'); return; }
 
   try {
@@ -267,6 +276,9 @@ async function addExpense() {
     if (data.ok) {
       document.getElementById('inp-amount').value = '';
       document.getElementById('inp-note').value = '';
+      document.getElementById('inp-cat-custom').value = '';
+      document.getElementById('inp-cat-custom').style.display = 'none';
+      document.getElementById('inp-cat').value = catSel === 'custom' ? '🛒 Продукти' : catSel;
       await fetchData();
     }
   } catch {
@@ -345,6 +357,13 @@ const CAT_COLORS = {
   "💊 Аптека":           "#34d399"
 };
 
+function colorFromString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+  const palette = ['#f472b6','#fb923c','#a3e635','#22d3ee','#818cf8','#e879f9','#fbbf24','#4ade80','#60a5fa','#f87171'];
+  return palette[Math.abs(hash) % palette.length];
+}
+
 function render() {
   const data = filtered();
   // Stats
@@ -361,7 +380,7 @@ function render() {
   data.forEach(e => cats[e.category]=(cats[e.category]||0)+e.amount);
   const labels = Object.keys(cats);
   const vals = labels.map(l=>cats[l]);
-  const colors = labels.map(l=>CAT_COLORS[l]||'#64748b');
+  const colors = labels.map(l => CAT_COLORS[l] || colorFromString(l));
   const pCtx = document.getElementById('pieChart').getContext('2d');
   if (pieChart) pieChart.destroy();
   pieChart = new Chart(pCtx, {
@@ -422,11 +441,33 @@ function openEdit(id) {
   if (!e) return;
   editId = id;
   document.getElementById('edit-person').value = e.person;
-  document.getElementById('edit-cat').value = e.category;
+  const editCatSel = document.getElementById('edit-cat');
+  const customInput = document.getElementById('edit-cat-custom');
+  const hasOption = Array.from(editCatSel.options).some(o => o.value === e.category);
+  if (hasOption) {
+    editCatSel.value = e.category;
+    customInput.style.display = 'none';
+    customInput.value = '';
+  } else {
+    editCatSel.value = 'custom';
+    customInput.style.display = '';
+    customInput.value = e.category;
+  }
   document.getElementById('edit-amount').value = e.amount;
   document.getElementById('edit-note').value = e.note || '';
   document.getElementById('edit-date').value = e.date;
   document.getElementById('editModal').classList.add('open');
+}
+
+function toggleCustomCat(prefix) {
+  const sel = document.getElementById(prefix + '-cat');
+  const custom = document.getElementById(prefix + '-cat-custom');
+  if (sel.value === 'custom') {
+    custom.style.display = '';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+  }
 }
 
 function closeModal() {
@@ -436,9 +477,12 @@ function closeModal() {
 
 async function saveEdit() {
   if (!editId) return;
+  const editCatSel = document.getElementById('edit-cat').value;
+  const category = editCatSel === 'custom' ? document.getElementById('edit-cat-custom').value.trim() : editCatSel;
+  if (!category) { alert('Введи назву категорії!'); return; }
   const expense = {
     person: document.getElementById('edit-person').value,
-    category: document.getElementById('edit-cat').value,
+    category: category,
     amount: parseFloat(document.getElementById('edit-amount').value),
     note: document.getElementById('edit-note').value,
     date: document.getElementById('edit-date').value
