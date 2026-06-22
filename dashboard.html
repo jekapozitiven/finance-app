@@ -125,7 +125,12 @@
   </div>
 
   <div class="grid">
-    <div class="card"><h3>📊 Категорії (%)</h3><div class="chart-wrap"><canvas id="pieChart"></canvas></div></div>
+    <div class="card">
+      <h3>📊 Категорії (%)</h3>
+      <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+      <button id="cat-toggle-btn" onclick="toggleCatBreakdown()" style="width:100%;margin-top:14px;padding:9px;background:#1c1c1e;border:1px solid #2c2c2e;border-radius:10px;color:#ffffff;font-size:13px;font-weight:600;cursor:pointer;">📋 Список по категоріях</button>
+      <div id="cat-breakdown" style="display:none;margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
     <div class="card"><h3>📈 По днях</h3><div class="chart-wrap"><canvas id="barChart"></canvas></div></div>
   </div>
 
@@ -381,6 +386,8 @@ function render() {
   const labels = Object.keys(cats);
   const vals = labels.map(l=>cats[l]);
   const colors = labels.map(l => CAT_COLORS[l] || colorFromString(l));
+  window._catBreakdown = labels.map((l,i)=>({ label:l, value:vals[i], color:colors[i] })).sort((a,b)=>b.value-a.value);
+  renderCatBreakdown();
   const pCtx = document.getElementById('pieChart').getContext('2d');
   if (pieChart) pieChart.destroy();
   pieChart = new Chart(pCtx, {
@@ -457,6 +464,34 @@ function openEdit(id) {
   document.getElementById('edit-note').value = e.note || '';
   document.getElementById('edit-date').value = e.date;
   document.getElementById('editModal').classList.add('open');
+}
+
+let _catBreakdownOpen = false;
+function toggleCatBreakdown() {
+  _catBreakdownOpen = !_catBreakdownOpen;
+  const box = document.getElementById('cat-breakdown');
+  const btn = document.getElementById('cat-toggle-btn');
+  box.style.display = _catBreakdownOpen ? 'flex' : 'none';
+  btn.textContent = _catBreakdownOpen ? '✕ Сховати список' : '📋 Список по категоріях';
+  if (_catBreakdownOpen) renderCatBreakdown();
+}
+function renderCatBreakdown() {
+  const box = document.getElementById('cat-breakdown');
+  if (!box || !_catBreakdownOpen) return;
+  const items = window._catBreakdown || [];
+  const total = items.reduce((s,i)=>s+i.value,0);
+  if (!items.length) { box.innerHTML = '<div style="color:#8e8e93;font-size:13px;padding:8px 0;">Немає даних за цей період</div>'; return; }
+  box.innerHTML = items.map(i => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border:1px solid #2c2c2e;border-radius:8px;padding:9px 12px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${i.color};display:inline-block;"></span>
+        <span style="font-size:13px;color:#ffffff;">${i.label}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:#8e8e93;">${total?((i.value/total)*100).toFixed(1):0}%</span>
+        <span style="font-size:13px;font-weight:700;color:#30d158;">${i.value.toLocaleString()} ₴</span>
+      </div>
+    </div>`).join('');
 }
 
 function toggleCustomCat(prefix) {
