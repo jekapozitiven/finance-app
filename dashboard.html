@@ -142,22 +142,6 @@
         <option value="wife">👩 Аліна</option>
       </select>
       <select id="inp-cat" onchange="toggleCustomCat('inp')">
-        <option>🛒 Продукти</option>
-        <option>💆 Краса та здоров'я</option>
-        <option>☕ Кафе</option>
-        <option>🏠 Житло</option>
-        <option>🚗 Транспорт</option>
-        <option>👗 Одяг</option>
-        <option>🎬 Розваги</option>
-        <option>📱 Підписки</option>
-        <option>🏋️ Спорт</option>
-        <option>💡 Платіжки</option>
-        <option>🎁 Подарунки</option>
-        <option>💳 % по кредиту</option>
-        <option>🏡 Товари для дому</option>
-        <option>💼 Товари для роботи</option>
-        <option>🏦 Закриття кредиту</option>
-        <option>📦 Інше</option>
         <option value="custom">✏️ Своя категорія</option>
       </select>
       <input type="text" id="inp-cat-custom" placeholder="Назва категорії" style="display:none;"/>
@@ -166,7 +150,24 @@
       <input type="date" id="inp-date"/>
       <button class="add-btn" onclick="addExpense()">Додати</button>
     </div>
+    <button onclick="openCatManager()" style="margin-top:10px;padding:8px 16px;background:none;border:1px solid #2c2c2e;border-radius:10px;color:#8e8e93;font-size:13px;cursor:pointer;">⚙️ Керувати категоріями</button>
   </div>
+
+  <!-- Модальне вікно керування категоріями -->
+  <div class="modal-overlay" id="catModal">
+    <div class="modal">
+      <h3>⚙️ Категорії витрат</h3>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input type="text" id="new-cat-name" placeholder="Нова категорія, напр. 🎓 Навчання" style="flex:1;background:#000000;border:1px solid #2c2c2e;color:#ffffff;padding:10px 14px;border-radius:10px;font-size:14px;"/>
+        <button onclick="addNewCategory()" style="padding:10px 18px;background:#30d158;border:none;border-radius:10px;color:#000000;font-weight:700;cursor:pointer;font-size:14px;white-space:nowrap;">Додати</button>
+      </div>
+      <div id="cat-manager-list" style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto;"></div>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeCatManager()" style="flex:1;">Закрити</button>
+      </div>
+    </div>
+  </div>
+
 
   <div class="card">
     <h3>🧾 Транзакції</h3>
@@ -190,22 +191,6 @@
         <option value="wife">👩 Аліна</option>
       </select>
       <select id="edit-cat" onchange="toggleCustomCat('edit')">
-        <option>🛒 Продукти</option>
-        <option>💆 Краса та здоров'я</option>
-        <option>☕ Кафе</option>
-        <option>🏠 Житло</option>
-        <option>🚗 Транспорт</option>
-        <option>👗 Одяг</option>
-        <option>🎬 Розваги</option>
-        <option>📱 Підписки</option>
-        <option>🏋️ Спорт</option>
-        <option>💡 Платіжки</option>
-        <option>🎁 Подарунки</option>
-        <option>💳 % по кредиту</option>
-        <option>🏡 Товари для дому</option>
-        <option>💼 Товари для роботи</option>
-        <option>🏦 Закриття кредиту</option>
-        <option>📦 Інше</option>
         <option value="custom">✏️ Своя категорія</option>
       </select>
       <input type="text" id="edit-cat-custom" placeholder="Назва категорії" style="display:none;"/>
@@ -225,6 +210,7 @@
 <script>
 const SERVER = "";  // Порожньо = той самий сервер
 let allData = [];
+let allCategories = [];
 let currentPerson = 'all';
 let currentRange = 'day';
 let pieChart, barChart;
@@ -233,6 +219,83 @@ document.getElementById('inp-date').value = today();
 
 function today() {
   return new Date().toISOString().split('T')[0];
+}
+
+// ---- Категорії ----
+async function fetchCategories() {
+  try {
+    const res = await fetch(`${SERVER}/categories`, { signal: AbortSignal.timeout(3000) });
+    const cats = await res.json();
+    allCategories = cats.map(c => c.name);
+    localStorage.setItem('fin_cats_cache', JSON.stringify(allCategories));
+  } catch {
+    const cached = localStorage.getItem('fin_cats_cache');
+    allCategories = cached ? JSON.parse(cached) : [];
+  }
+  populateCatSelects();
+}
+
+function populateCatSelects() {
+  ['inp-cat', 'edit-cat'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prevValue = sel.value;
+    sel.innerHTML = allCategories.map(c => `<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('')
+      + '<option value="custom">✏️ Своя категорія</option>';
+    if (prevValue && [...sel.options].some(o => o.value === prevValue)) sel.value = prevValue;
+  });
+}
+
+async function addNewCategory() {
+  const input = document.getElementById('new-cat-name');
+  const name = input.value.trim();
+  if (!name) { alert('Введи назву категорії!'); return; }
+  if (allCategories.includes(name)) { alert('Така категорія вже є!'); return; }
+  try {
+    await fetch(`${SERVER}/categories`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    input.value = '';
+    await fetchCategories();
+    renderCatManagerList();
+  } catch {
+    alert('Не вдалось додати категорію. Перевір з\'єднання.');
+  }
+}
+
+async function deleteCategoryByName(name) {
+  if (!confirm(`Видалити категорію "${name}"? Старі витрати з цією категорією залишаться.`)) return;
+  try {
+    const res = await fetch(`${SERVER}/categories`, { signal: AbortSignal.timeout(3000) });
+    const cats = await res.json();
+    const found = cats.find(c => c.name === name);
+    if (found) {
+      await fetch(`${SERVER}/categories/${found.id}`, { method: 'DELETE' });
+    }
+    await fetchCategories();
+    renderCatManagerList();
+  } catch {
+    alert('Не вдалось видалити категорію. Перевір з\'єднання.');
+  }
+}
+
+function openCatManager() {
+  document.getElementById('catModal').classList.add('open');
+  renderCatManagerList();
+}
+function closeCatManager() {
+  document.getElementById('catModal').classList.remove('open');
+}
+function renderCatManagerList() {
+  const box = document.getElementById('cat-manager-list');
+  if (!box) return;
+  if (!allCategories.length) { box.innerHTML = '<div style="color:#8e8e93;font-size:13px;padding:8px 0;">Категорій немає</div>'; return; }
+  box.innerHTML = allCategories.map(c => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#000000;border:1px solid #2c2c2e;border-radius:8px;padding:9px 12px;">
+      <span style="font-size:14px;color:#ffffff;">${c}</span>
+      <button onclick="deleteCategoryByName('${c.replace(/'/g,"\\'")}')" style="background:none;border:none;color:#8e8e93;cursor:pointer;font-size:15px;">✕</button>
+    </div>`).join('');
 }
 
 // ---- Fetch з сервера ----
@@ -279,11 +342,21 @@ async function addExpense() {
     });
     const data = await res.json();
     if (data.ok) {
+      // Якщо ввели нову категорію вручну — зберігаємо її назавжди у список
+      if (catSel === 'custom' && !allCategories.includes(category)) {
+        try {
+          await fetch(`${SERVER}/categories`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: category })
+          });
+          await fetchCategories();
+        } catch {}
+      }
       document.getElementById('inp-amount').value = '';
       document.getElementById('inp-note').value = '';
       document.getElementById('inp-cat-custom').value = '';
       document.getElementById('inp-cat-custom').style.display = 'none';
-      document.getElementById('inp-cat').value = catSel === 'custom' ? '🛒 Продукти' : catSel;
+      document.getElementById('inp-cat').value = catSel === 'custom' ? category : catSel;
       await fetchData();
     }
   } catch {
@@ -523,6 +596,15 @@ async function saveEdit() {
     date: document.getElementById('edit-date').value
   };
   try {
+    if (editCatSel === 'custom' && !allCategories.includes(category)) {
+      try {
+        await fetch(`${SERVER}/categories`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: category })
+        });
+        await fetchCategories();
+      } catch {}
+    }
     await fetch(`${SERVER}/expenses/${editId}`, { method: 'DELETE' });
     expense.id = editId;
     await fetch(`${SERVER}/expenses`, {
@@ -542,6 +624,7 @@ function clearSearch() {
 }
 
 // Авто-оновлення кожні 5 секунд
+fetchCategories();
 fetchData(true);
 setInterval(fetchData, 5000);
 </script>
