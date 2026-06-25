@@ -52,7 +52,23 @@ def init_db():
             date VARCHAR(10)
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id BIGINT PRIMARY KEY,
+            name VARCHAR(50) UNIQUE NOT NULL
+        )
+    """)
     conn.commit()
+    cur.execute("SELECT COUNT(*) FROM categories")
+    count = cur.fetchone()[0]
+    if count == 0:
+        defaults = [c for row in CATEGORIES for c in row]
+        for i, name in enumerate(defaults):
+            cur.execute(
+                "INSERT INTO categories (id, name) VALUES (%s, %s) ON CONFLICT (name) DO NOTHING",
+                (i + 1, name)
+            )
+        conn.commit()
     cur.close()
     conn.close()
     print("✅ База даних готова")
@@ -82,6 +98,37 @@ def delete_expense(eid):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM expenses WHERE id = %s", (eid,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def load_categories():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM categories ORDER BY id ASC")
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return rows
+
+def add_category(name):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM categories")
+    new_id = cur.fetchone()[0]
+    cur.execute(
+        "INSERT INTO categories (id, name) VALUES (%s, %s) ON CONFLICT (name) DO NOTHING",
+        (new_id, name)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return new_id
+
+def delete_category(cid):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM categories WHERE id = %s", (cid,))
     conn.commit()
     cur.close()
     conn.close()
@@ -150,6 +197,8 @@ class Handler(BaseHTTPRequestHandler):
                 person=params.get("person", [None])[0]
             )
             self.send_json(rows)
+        elif parsed.path == "/categories":
+            self.send_json(load_categories())
         elif parsed.path == "/health":
             self.send_json({"ok": True})
         else:
@@ -167,6 +216,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True, "id": expense["id"]})
             except Exception as ex:
                 self.send_json({"error": str(ex)}, 400)
+        elif self.path == "/categories":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+            try:
+                payload = json.loads(body.decode("utf-8"))
+                name = (payload.get("name") or "").strip()
+                if not name:
+                    self.send_json({"error": "empty name"}, 400)
+                    return
+                new_id = add_category(name)
+                self.send_json({"ok": True, "id": new_id, "name": name})
+            except Exception as ex:
+                self.send_json({"error": str(ex)}, 400)
         else:
             self.send_json({"error": "not found"}, 404)
 
@@ -176,6 +238,12 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 2 and parts[0] == "expenses":
             try:
                 delete_expense(int(parts[1]))
+                self.send_json({"ok": True})
+            except Exception as ex:
+                self.send_json({"error": str(ex)}, 400)
+        elif len(parts) == 2 and parts[0] == "categories":
+            try:
+                delete_category(int(parts[1]))
                 self.send_json({"ok": True})
             except Exception as ex:
                 self.send_json({"error": str(ex)}, 400)
