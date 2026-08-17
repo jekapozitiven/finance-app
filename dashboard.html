@@ -78,6 +78,18 @@
   .modal-cancel { flex:1; padding:10px; background:#2c2c2e; border:1px solid #2c2c2e; border-radius:10px; color:#8e8e93; cursor:pointer; font-size:14px; }
   .empty { text-align: center; color: #8e8e93; padding: 30px; font-size: 14px; }
   .server-warn { background: #1c1c1e; border: 1px solid #ff453a; color: #ff453a; padding: 14px 20px; border-radius: 12px; margin-bottom: 20px; font-size: 13px; display: none; }
+  .import-modal { background:#000000; border:1px solid #2c2c2e; border-radius:20px; padding:28px; width:96%; max-width:680px; max-height:88vh; overflow-y:auto; }
+  .import-drop { border:2px dashed #2c2c2e; border-radius:14px; padding:32px; text-align:center; cursor:pointer; transition:border-color .2s; }
+  .import-drop:hover, .import-drop.drag { border-color:#30d158; }
+  .import-row { display:flex; align-items:center; justify-content:space-between; background:#1c1c1e; border-radius:10px; padding:12px 14px; gap:10px; }
+  .import-row.resolved { border-left:4px solid #30d158; }
+  .import-row.pending { border-left:4px solid #f5a623; }
+  .import-row.deleted { opacity:.35; text-decoration:line-through; }
+  .import-cat-sel { background:#000000; border:1px solid #2c2c2e; color:#ffffff; padding:6px 10px; border-radius:8px; font-size:12px; }
+  .import-del-btn { background:none; border:none; color:#8e8e93; cursor:pointer; font-size:16px; padding:4px 8px; }
+  .import-del-btn:hover { color:#ff453a; }
+  .import-save-btn { background:#30d158; border:none; border-radius:12px; color:#000; font-weight:700; padding:12px 28px; font-size:15px; cursor:pointer; width:100%; margin-top:16px; }
+  .import-save-btn:disabled { opacity:.4; cursor:default; }
 </style>
 </head>
 <body>
@@ -91,6 +103,7 @@
     </div>
   </div>
   <div id="sync-badge" class="sync-badge">🔄 Підключення...</div>
+  <button onclick="openImport()" style="padding:8px 18px;background:#30d158;border:none;border-radius:20px;color:#000000;font-size:13px;font-weight:700;cursor:pointer;margin-left:12px;">📥 Імпорт виписки</button>
 </div>
 
 <div class="container">
@@ -179,6 +192,62 @@
     <div class="tx-list" id="tx-list"><div class="empty">Завантаження...</div></div>
   </div>
 
+</div>
+
+<!-- Модальне вікно імпорту виписки -->
+<div class="modal-overlay" id="importModal">
+  <div class="import-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 style="color:#ffffff;font-size:18px;font-weight:700;">📥 Імпорт виписки з банку</h3>
+      <button onclick="closeImport()" style="background:none;border:none;color:#8e8e93;font-size:22px;cursor:pointer;">✕</button>
+    </div>
+
+    <!-- Крок 1: Завантаження -->
+    <div id="imp-step1">
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <button onclick="setImpPerson('me')" id="imp-btn-me" style="flex:1;padding:10px;border-radius:10px;border:2px solid #ffffff;background:#ffffff;color:#000;font-weight:700;cursor:pointer;font-size:14px;">👤 Женя</button>
+        <button onclick="setImpPerson('wife')" id="imp-btn-wife" style="flex:1;padding:10px;border-radius:10px;border:2px solid #2c2c2e;background:transparent;color:#8e8e93;font-weight:700;cursor:pointer;font-size:14px;">👩 Аліна</button>
+      </div>
+
+      <div class="import-drop" id="imp-drop"
+        ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
+        onclick="document.getElementById('imp-file').click()">
+        <div style="font-size:40px;margin-bottom:12px;">📎</div>
+        <div style="color:#ffffff;font-size:15px;font-weight:600;margin-bottom:6px;">Натисни або перетягни файл</div>
+        <div style="color:#8e8e93;font-size:13px;">Підтримується: PDF, PNG, JPG, JPEG, GIF, WEBP</div>
+        <div style="color:#8e8e93;font-size:12px;margin-top:8px;">Monobank, ПриватБанк та інші</div>
+      </div>
+      <input type="file" id="imp-file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" style="display:none" onchange="handleFileSelect(event)"/>
+
+      <div id="imp-file-info" style="display:none;margin-top:12px;padding:12px;background:#1c1c1e;border-radius:10px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;">📄</span>
+        <div style="flex:1;">
+          <div id="imp-file-name" style="color:#ffffff;font-size:13px;font-weight:600;"></div>
+          <div id="imp-file-size" style="color:#8e8e93;font-size:12px;"></div>
+        </div>
+        <button onclick="clearImportFile()" style="background:none;border:none;color:#ff453a;cursor:pointer;font-size:16px;">✕</button>
+      </div>
+
+      <button id="imp-analyze-btn" onclick="analyzeImport()" disabled style="width:100%;margin-top:16px;padding:13px;background:#30d158;border:none;border-radius:12px;color:#000;font-weight:700;font-size:15px;cursor:pointer;opacity:.4;">🔍 Аналізувати виписку (AI)</button>
+    </div>
+
+    <!-- Крок 2: Результати -->
+    <div id="imp-step2" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <button onclick="backToStep1()" style="background:none;border:1px solid #2c2c2e;border-radius:8px;color:#8e8e93;padding:6px 14px;cursor:pointer;font-size:13px;">← Назад</button>
+        <div id="imp-summary" style="color:#8e8e93;font-size:13px;flex:1;text-align:right;"></div>
+      </div>
+      <div id="imp-results" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:380px;overflow-y:auto;"></div>
+      <button id="imp-save-btn" class="import-save-btn" onclick="saveImportedTransactions()">💾 Зберегти всі транзакції</button>
+    </div>
+
+    <!-- Завантаження AI -->
+    <div id="imp-loading" style="display:none;text-align:center;padding:40px;">
+      <div style="font-size:36px;margin-bottom:16px;">🤖</div>
+      <div style="color:#ffffff;font-size:15px;font-weight:600;margin-bottom:8px;">AI аналізує виписку...</div>
+      <div style="color:#8e8e93;font-size:13px;">Розпізнаю транзакції та підбираю категорії</div>
+    </div>
+  </div>
 </div>
 
 <!-- Модальне вікно редагування -->
@@ -624,6 +693,182 @@ function clearSearch() {
 }
 
 // Авто-оновлення кожні 5 секунд
+// ---- ІМПОРТ ВИПИСКИ ----
+let impPerson = 'me';
+let impFile = null;
+let impTransactions = [];
+
+function openImport() {
+  document.getElementById('importModal').classList.add('open');
+  impFile = null; impTransactions = [];
+  showStep(1);
+}
+function closeImport() {
+  document.getElementById('importModal').classList.remove('open');
+}
+function backToStep1() { showStep(1); }
+
+function showStep(n) {
+  document.getElementById('imp-step1').style.display = n===1 ? '' : 'none';
+  document.getElementById('imp-step2').style.display = n===2 ? '' : 'none';
+  document.getElementById('imp-loading').style.display = 'none';
+}
+
+function setImpPerson(p) {
+  impPerson = p;
+  document.getElementById('imp-btn-me').style.background = p==='me' ? '#ffffff' : 'transparent';
+  document.getElementById('imp-btn-me').style.color = p==='me' ? '#000' : '#8e8e93';
+  document.getElementById('imp-btn-me').style.borderColor = p==='me' ? '#ffffff' : '#2c2c2e';
+  document.getElementById('imp-btn-wife').style.background = p==='wife' ? '#ffffff' : 'transparent';
+  document.getElementById('imp-btn-wife').style.color = p==='wife' ? '#000' : '#8e8e93';
+  document.getElementById('imp-btn-wife').style.borderColor = p==='wife' ? '#ffffff' : '#2c2c2e';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('imp-drop').classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) setImportFile(f);
+}
+function handleFileSelect(e) {
+  const f = e.target.files[0];
+  if (f) setImportFile(f);
+}
+function setImportFile(f) {
+  impFile = f;
+  const infoEl = document.getElementById('imp-file-info');
+  document.getElementById('imp-file-name').textContent = f.name;
+  document.getElementById('imp-file-size').textContent = (f.size/1024).toFixed(1) + ' KB';
+  infoEl.style.display = 'flex';
+  const btn = document.getElementById('imp-analyze-btn');
+  btn.disabled = false; btn.style.opacity = '1';
+}
+function clearImportFile() {
+  impFile = null;
+  document.getElementById('imp-file-info').style.display = 'none';
+  document.getElementById('imp-file').value = '';
+  const btn = document.getElementById('imp-analyze-btn');
+  btn.disabled = true; btn.style.opacity = '.4';
+}
+
+async function analyzeImport() {
+  if (!impFile) return;
+  document.getElementById('imp-step1').style.display = 'none';
+  document.getElementById('imp-loading').style.display = '';
+
+  try {
+    const base64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(impFile);
+    });
+
+    const isPdf = impFile.type === 'application/pdf';
+    const mediaType = isPdf ? 'application/pdf' : impFile.type;
+    const catList = allCategories.join(', ');
+    const today = new Date().toISOString().split('T')[0];
+
+    const prompt = `Ти аналізуєш банківську виписку (скріншот або PDF). Витягни всі транзакції витрат (списання коштів) і визнач категорію кожної.
+
+Доступні категорії: ${catList}
+
+Правила:
+- Визначай категорію автоматично за назвою магазину/сервісу
+- Якщо не можеш визначити — залиш category порожнім рядком
+- Ігноруй поповнення, перекази на власний рахунок
+- Дати у форматі YYYY-MM-DD (рік ${today.split('-')[0]} якщо не вказано)
+- Суми тільки позитивні числа
+
+Відповідай ТІЛЬКИ валідним JSON без жодних пояснень:
+{"transactions":[{"date":"YYYY-MM-DD","amount":123.45,"description":"Назва","category":"категорія або порожньо"}]}`;
+
+    const messages = isPdf
+      ? [{ role: 'user', content: [
+          { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: prompt }
+        ]}]
+      : [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: prompt }
+        ]}];
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages })
+    });
+
+    const data = await res.json();
+    const text = (data.content || []).map(c => c.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    impTransactions = (parsed.transactions || []).map((t, i) => ({
+      ...t, _id: i, _deleted: false, person: impPerson
+    }));
+
+    renderImportResults();
+    showStep(2);
+
+  } catch(err) {
+    document.getElementById('imp-loading').style.display = 'none';
+    document.getElementById('imp-step1').style.display = '';
+    alert('Помилка аналізу: ' + err.message);
+  }
+}
+
+function renderImportResults() {
+  const box = document.getElementById('imp-results');
+  const active = impTransactions.filter(t => !t._deleted);
+  document.getElementById('imp-summary').textContent = `Знайдено: ${active.length} транзакцій`;
+  box.innerHTML = impTransactions.map(t => `
+    <div class="import-row ${t._deleted ? 'deleted' : t.category ? 'resolved' : 'pending'}" id="irow-${t._id}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:#ffffff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.description||'Без опису'}</div>
+        <div style="font-size:11px;color:#8e8e93;">${t.date}</div>
+      </div>
+      <div style="font-size:14px;color:#30d158;font-weight:700;white-space:nowrap;min-width:70px;text-align:right;">${(t.amount||0).toLocaleString()} ₴</div>
+      <select class="import-cat-sel" onchange="setImpCat(${t._id}, this.value)" ${t._deleted ? 'disabled' : ''}>
+        <option value="">❓ Невизначено</option>
+        ${allCategories.map(c => `<option value="${c.replace(/"/g,'&quot;')}" ${t.category===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <button class="import-del-btn" onclick="toggleImpDel(${t._id})">${t._deleted ? '↩️' : '✕'}</button>
+    </div>
+  `).join('');
+}
+
+function setImpCat(id, val) {
+  const t = impTransactions.find(t => t._id === id);
+  if (t) { t.category = val; renderImportResults(); }
+}
+function toggleImpDel(id) {
+  const t = impTransactions.find(t => t._id === id);
+  if (t) { t._deleted = !t._deleted; renderImportResults(); }
+}
+
+async function saveImportedTransactions() {
+  const toSave = impTransactions.filter(t => !t._deleted && t.category);
+  const nocat = impTransactions.filter(t => !t._deleted && !t.category);
+  if (nocat.length > 0 && !confirm(`${nocat.length} транзакцій без категорії не збережуться. Продовжити?`)) return;
+  if (!toSave.length) { alert('Немає транзакцій для збереження.'); return; }
+  const btn = document.getElementById('imp-save-btn');
+  btn.disabled = true; btn.textContent = '⏳ Збереження...';
+  let saved = 0;
+  for (const t of toSave) {
+    try {
+      await fetch(`${SERVER}/expenses`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person: t.person, category: t.category, amount: t.amount, note: t.description||'', date: t.date })
+      });
+      saved++;
+    } catch {}
+  }
+  closeImport();
+  await fetchData(true);
+  alert(`✅ Збережено ${saved} транзакцій!`);
+}
+
 fetchCategories();
 fetchData(true);
 setInterval(fetchData, 5000);
